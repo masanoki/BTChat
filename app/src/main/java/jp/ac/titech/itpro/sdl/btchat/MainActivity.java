@@ -56,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
     private ListView chatLogView;
     private EditText inputText;
     private Button sendButton;
+    private Button sendSound;
 
     private ArrayList<ChatMessage> chatLog;
     private ArrayAdapter<ChatMessage> chatLogAdapter;
@@ -91,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
     private SoundPool soundPool;
     private int sound_connected;
     private int sound_disconnected;
+    private int bell;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
         connectionProgress = findViewById(R.id.connection_progress);
         inputText = findViewById(R.id.input_text);
         sendButton = findViewById(R.id.send_button);
+        sendSound = findViewById(R.id.send_sound);
         chatLogView = findViewById(R.id.chat_log_view);
         chatLogAdapter = new ArrayAdapter<ChatMessage>(this, 0, chatLog) {
             @Override
@@ -152,6 +155,8 @@ public class MainActivity extends AppCompatActivity {
         sound_connected = soundPool.load(this, R.raw.nhk_doorbell, 1);
         // https://www.nhk.or.jp/archives/creative/material/view.html?m=D0002070102_00000
         sound_disconnected = soundPool.load(this, R.raw.nhk_woodblock2, 1);
+        // https://www.nhk.or.jp/archives/creative/material/view.html?m=D0002011524_00000
+        bell = soundPool.load(this, R.raw.nhk_doorbell, 1);
 
         btAdapter = BluetoothAdapter.getDefaultAdapter();
         if (btAdapter != null)
@@ -290,6 +295,17 @@ public class MainActivity extends AppCompatActivity {
             chatLogAdapter.notifyDataSetChanged();
             chatLogView.smoothScrollToPosition(chatLog.size());
             inputText.getEditableText().clear();
+        }
+    }
+
+    public void onClickSendSound(View v) {
+        Log.d(TAG, "onClickSendSound");
+        if (commThread != null) {
+            String content = "ringBell";
+            message_seq++;
+            long time = System.currentTimeMillis();
+            ChatMessage message = new ChatMessage(message_seq, time, content, devName);
+            commThread.send(message);
         }
     }
 
@@ -560,7 +576,6 @@ public class MainActivity extends AppCompatActivity {
                     new OutputStreamWriter(socket.getOutputStream(), "UTF-8")));
             this.handler = handler;
         }
-
         @Override
         public void run() {
             Log.d(TAG, "run");
@@ -664,36 +679,45 @@ public class MainActivity extends AppCompatActivity {
             statusText.setText(R.string.conn_status_text_disconnected);
             inputText.setEnabled(false);
             sendButton.setEnabled(false);
+            sendSound.setEnabled(false);
             break;
         case Disconnected:
             statusText.setText(R.string.conn_status_text_disconnected);
             inputText.setEnabled(false);
             sendButton.setEnabled(false);
+            sendSound.setEnabled(false);
             break;
         case Connecting:
             statusText.setText(getString(R.string.conn_status_text_connecting_to, arg));
             inputText.setEnabled(false);
             sendButton.setEnabled(false);
+            sendSound.setEnabled(false);
             break;
         case Connected:
             statusText.setText(getString(R.string.conn_status_text_connected_to, arg));
             inputText.setEnabled(true);
             sendButton.setEnabled(true);
+            sendSound.setEnabled(true);
             soundPool.play(sound_connected, 1.0f, 1.0f, 0, 0, 1);
             break;
         case Waiting:
             statusText.setText(R.string.conn_status_text_waiting_for_connection);
             inputText.setEnabled(false);
             sendButton.setEnabled(false);
+            sendSound.setEnabled(false);
             break;
         }
         invalidateOptionsMenu();
     }
 
     private void showMessage(ChatMessage message) {
-        chatLogAdapter.add(message);
-        chatLogAdapter.notifyDataSetChanged();
-        chatLogView.smoothScrollToPosition(chatLogAdapter.getCount());
+        if (message.content.equals("ringBell")) {
+          soundPool.play(bell, 1.0f, 1.0f, 0, 0, 1);
+        } else {
+            chatLogAdapter.add(message);
+            chatLogAdapter.notifyDataSetChanged();
+            chatLogView.smoothScrollToPosition(chatLogAdapter.getCount());
+        }
     }
 
     private void disconnect() {
